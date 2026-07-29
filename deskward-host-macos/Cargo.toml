@@ -1,0 +1,18 @@
+[package]
+name = "deskward-host-macos"
+description = "Deskward macOS host agent (Faz 1)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "deskward-host-macos"
+path = "src/main.rs"
+
+[dependencies]
+deskward-core = { path = "../deskward-core" }
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

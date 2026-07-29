@@ -1,0 +1,6 @@
+/target
+**/*.rs.bk
+.DS_Store
+deskward-app/.dart_tool/
+deskward-app/build/
+.env

@@ -1,0 +1,4 @@
+# Deskward white-label build overrides (Faz 3)
+app_name: Deskward
+bundle_id: com.deskward.app
+icon_path: assets/icon.png

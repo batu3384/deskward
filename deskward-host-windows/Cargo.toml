@@ -1,0 +1,17 @@
+[package]
+name = "deskward-host-windows"
+description = "Deskward Windows host agent (Faz 2)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "deskward-host-windows"
+path = "src/main.rs"
+
+[dependencies]
+deskward-core = { path = "../deskward-core" }
+tracing.workspace = true
+tracing-subscriber.workspace = true

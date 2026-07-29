@@ -1,0 +1,18 @@
+services:
+  deskward-id:
+    build:
+      context: ../..
+      dockerfile: deploy/pi/Dockerfile.id
+    container_name: deskward-id
+    network_mode: host
+    restart: unless-stopped
+
+  deskward-relay:
+    build:
+      context: ../..
+      dockerfile: deploy/pi/Dockerfile.relay
+    container_name: deskward-relay
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      - deskward-id

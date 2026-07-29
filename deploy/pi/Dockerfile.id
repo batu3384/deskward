@@ -1,0 +1,12 @@
+FROM rust:1.83-bookworm AS builder
+WORKDIR /app
+COPY Cargo.toml Cargo.lock* ./
+COPY deskward-core ./deskward-core
+COPY deskward-id ./deskward-id
+RUN cargo build --release -p deskward-id
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/deskward-id /usr/local/bin/
+ENV DESKWARD_ID_ADDR=0.0.0.0:29115
+ENTRYPOINT ["deskward-id"]
