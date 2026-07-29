@@ -12,6 +12,12 @@ pub enum Error {
     Protocol(String),
     #[error("handshake failed")]
     HandshakeFailed,
+    #[error("auth failed")]
+    AuthFailed,
+    #[error("peer not found: {0}")]
+    PeerNotFound(String),
+    #[error("tailscale: {0}")]
+    Tailscale(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

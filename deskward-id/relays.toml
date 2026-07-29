@@ -1,0 +1,11 @@
+# Deskward relay registry (Faz 3). Override path via DESKWARD_RELAYS_CONFIG.
+
+[[relays]]
+host = "127.0.0.1"
+port = 29117
+region = "local"
+
+[[relays]]
+host = "relay.eu.example"
+port = 29117
+region = "eu"

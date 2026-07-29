@@ -1,7 +1,14 @@
 use serde::{Deserialize, Serialize};
 
-/// Deskward wire protocol v0 message types.
+/// Relay fallback hint attached to punch responses (Faz 3).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelayHint {
+    pub host: String,
+    pub port: u16,
+}
+
+/// Deskward wire protocol v0 message types.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Message {
     Register {
@@ -14,11 +21,19 @@ pub enum Message {
     PunchRequest {
         from: String,
         to: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        region: Option<String>,
     },
     PunchResponse {
         from: String,
         to: String,
         endpoint: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        relay: Option<RelayHint>,
+    },
+    PunchDenied {
+        to: String,
+        reason: String,
     },
     RelayAllocate {
         session_id: String,
@@ -37,11 +52,61 @@ pub enum Message {
     HandshakeHello {
         peer_id: String,
         nonce: [u8; 32],
+        public_key: [u8; 32],
     },
     HandshakeAck {
         peer_id: String,
         nonce: [u8; 32],
+        public_key: [u8; 32],
         signature: Vec<u8>,
+    },
+    SessionAuth {
+        password: String,
+    },
+    SessionAuthResult {
+        ok: bool,
+        reason: Option<String>,
+    },
+    NoisePacket {
+        payload: Vec<u8>,
+    },
+    EncryptedFrame {
+        payload: Vec<u8>,
+    },
+    MediaFrame {
+        width: u32,
+        height: u32,
+        codec: String,
+        keyframe: bool,
+        data: Vec<u8>,
+    },
+    InputPointer {
+        x: f64,
+        y: f64,
+        button: u8,
+        pressed: bool,
+    },
+    InputKey {
+        keycode: u32,
+        pressed: bool,
+    },
+    ClipboardPush {
+        mime: String,
+        data: Vec<u8>,
+    },
+    FileOfferMsg {
+        path: String,
+        size: u64,
+        session_id: String,
+    },
+    FileChunkMsg {
+        session_id: String,
+        offset: u64,
+        data: Vec<u8>,
+        final_chunk: bool,
+    },
+    FileComplete {
+        session_id: String,
     },
 }
 
@@ -64,6 +129,9 @@ pub fn decode_frame(buf: &[u8]) -> crate::Result<(Message, usize)> {
         return Err(crate::Error::Protocol("buffer too short".into()));
     }
     let len = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
+    if len > crate::admin_auth::MAX_FRAME_BYTES {
+        return Err(crate::Error::Protocol("frame too large".into()));
+    }
     if buf.len() < 4 + len {
         return Err(crate::Error::Protocol("incomplete frame".into()));
     }
@@ -85,6 +153,15 @@ mod tests {
         let (decoded, n) = decode_frame(&frame).unwrap();
         assert_eq!(n, frame.len());
         assert_eq!(decoded, msg);
+    }
+
+    #[test]
+    fn oversize_frame_rejected() {
+        let len = (crate::admin_auth::MAX_FRAME_BYTES + 1) as u32;
+        let mut frame = len.to_be_bytes().to_vec();
+        frame.push(0);
+        let err = decode_frame(&frame);
+        assert!(err.is_err());
     }
 
     #[test]

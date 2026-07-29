@@ -36,21 +36,67 @@ impl Session {
         Message::HandshakeHello {
             peer_id: self.peer_id.clone(),
             nonce: self.our_nonce,
+            public_key: self.identity.public_key_bytes(),
         }
     }
 
-    pub fn on_hello(&mut self, _peer_id: String, peer_nonce: [u8; 32], peer_public: [u8; 32]) -> Result<Message> {
+    pub fn on_hello(&mut self, hello: &Message) -> Result<Message> {
+        let Message::HandshakeHello {
+            peer_id: _,
+            nonce: peer_nonce,
+            public_key: peer_public,
+        } = hello
+        else {
+            return Err(Error::Protocol("expected HandshakeHello".into()));
+        };
+        self.peer_public = Some(*peer_public);
+        let sig = sign_handshake(&self.identity, peer_nonce, &self.our_nonce);
+        self.state = SessionState::Established;
+        Ok(Message::HandshakeAck {
+            peer_id: self.peer_id.clone(),
+            nonce: self.our_nonce,
+            public_key: self.identity.public_key_bytes(),
+            signature: sig,
+        })
+    }
+
+    pub fn on_hello_legacy(
+        &mut self,
+        _peer_id: String,
+        peer_nonce: [u8; 32],
+        peer_public: [u8; 32],
+    ) -> Result<Message> {
         self.peer_public = Some(peer_public);
         let sig = sign_handshake(&self.identity, &peer_nonce, &self.our_nonce);
         self.state = SessionState::Established;
         Ok(Message::HandshakeAck {
             peer_id: self.peer_id.clone(),
             nonce: self.our_nonce,
+            public_key: self.identity.public_key_bytes(),
             signature: sig,
         })
     }
 
-    pub fn on_ack(
+    pub fn on_ack(&mut self, ack: &Message) -> Result<()> {
+        if self.state != SessionState::HelloSent {
+            return Err(Error::HandshakeFailed);
+        }
+        let Message::HandshakeAck {
+            nonce: responder_nonce,
+            public_key: peer_public,
+            signature,
+            ..
+        } = ack
+        else {
+            return Err(Error::Protocol("expected HandshakeAck".into()));
+        };
+        verify_handshake(peer_public, &self.our_nonce, responder_nonce, signature)?;
+        self.peer_public = Some(*peer_public);
+        self.state = SessionState::Established;
+        Ok(())
+    }
+
+    pub fn on_ack_legacy(
         &mut self,
         responder_nonce: [u8; 32],
         signature: &[u8],
@@ -59,7 +105,6 @@ impl Session {
         if self.state != SessionState::HelloSent {
             return Err(Error::HandshakeFailed);
         }
-        // Responder signed: initiator_nonce || responder_nonce
         verify_handshake(&peer_public, &self.our_nonce, &responder_nonce, signature)?;
         self.peer_public = Some(peer_public);
         self.state = SessionState::Established;
@@ -90,19 +135,8 @@ mod tests {
         let mut sb = Session::new("b", id_b);
 
         let hello = sa.begin_handshake();
-        let Message::HandshakeHello { peer_id, nonce } = hello else {
-            panic!("expected hello");
-        };
-        let ack = sb.on_hello(peer_id, nonce, sa.public_key_bytes()).unwrap();
-        let Message::HandshakeAck {
-            nonce: nb,
-            signature,
-            ..
-        } = ack
-        else {
-            panic!("expected ack");
-        };
-        sa.on_ack(nb, &signature, sb.public_key_bytes()).unwrap();
+        let ack = sb.on_hello(&hello).unwrap();
+        sa.on_ack(&ack).unwrap();
         assert_eq!(sa.state, SessionState::Established);
         assert_eq!(sb.state, SessionState::Established);
     }

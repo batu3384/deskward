@@ -17,7 +17,7 @@ pub enum KeyEvent {
 }
 
 /// Inject mouse/keyboard into host OS.
-pub trait InputInjector: Send {
+pub trait InputInjector {
     fn move_pointer(&mut self, x: f64, y: f64) -> Result<()>;
     fn pointer_button(&mut self, ev: PointerEvent) -> Result<()>;
     fn key(&mut self, ev: KeyEvent) -> Result<()>;

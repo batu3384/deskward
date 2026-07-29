@@ -13,13 +13,34 @@ pub struct VideoFrame {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Codec {
+    Jpeg,
     Raw,
     H264,
     H265,
     Vp9,
 }
 
-pub trait ScreenCapture: Send {
+impl Codec {
+    pub fn wire_name(self) -> &'static str {
+        match self {
+            Codec::Jpeg | Codec::Raw => "jpeg",
+            Codec::H264 => "h264",
+            Codec::H265 => "h265",
+            Codec::Vp9 => "vp9",
+        }
+    }
+
+    pub fn from_wire(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "h264" => Codec::H264,
+            "h265" | "hevc" => Codec::H265,
+            "vp9" => Codec::Vp9,
+            _ => Codec::Jpeg,
+        }
+    }
+}
+
+pub trait ScreenCapture {
     fn capture_frame(&mut self) -> Result<Option<VideoFrame>>;
 }
 

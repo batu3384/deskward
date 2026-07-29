@@ -1,66 +1,20 @@
 //! Deskward ID server — register, heartbeat, punch coordination.
 
+mod admin;
+mod registry;
 mod relay_registry;
 
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use dashmap::DashMap;
-use deskward_core::protocol::{decode_frame, encode_frame, Message};
+use deskward_core::protocol::{decode_frame, encode_frame, Message, RelayHint};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{info, warn};
 
+use crate::registry::Registry;
+
 const DEFAULT_TCP: &str = "0.0.0.0:29115";
-const PEER_TTL: Duration = Duration::from_secs(90);
-
-#[derive(Clone)]
-struct PeerRecord {
-    endpoint: String,
-    last_seen: Instant,
-}
-
-#[derive(Clone)]
-struct Registry {
-    peers: Arc<DashMap<String, PeerRecord>>,
-}
-
-impl Registry {
-    fn new() -> Self {
-        Self {
-            peers: Arc::new(DashMap::new()),
-        }
-    }
-
-    fn register(&self, peer_id: String, endpoint: String) {
-        self.peers.insert(
-            peer_id.clone(),
-            PeerRecord {
-                endpoint,
-                last_seen: Instant::now(),
-            },
-        );
-        info!(peer_id, "registered");
-    }
-
-    fn heartbeat(&self, peer_id: &str) -> bool {
-        if let Some(mut rec) = self.peers.get_mut(peer_id) {
-            rec.last_seen = Instant::now();
-            true
-        } else {
-            false
-        }
-    }
-
-    fn endpoint_of(&self, peer_id: &str) -> Option<String> {
-        self.peers.get(peer_id).map(|p| p.endpoint.clone())
-    }
-
-    fn prune_stale(&self) {
-        self.peers
-            .retain(|_, rec| rec.last_seen.elapsed() < PEER_TTL);
-    }
-}
+const DEFAULT_ADMIN: &str = "127.0.0.1:29116";
 
 async fn handle_client(mut stream: TcpStream, registry: Registry) -> std::io::Result<()> {
     let mut buf = vec![0u8; 65536];
@@ -103,18 +57,25 @@ async fn process_message(registry: &Registry, msg: Message) -> Option<Message> {
             }
             None
         }
-        Message::PunchRequest { from, to } => {
+        Message::PunchRequest { from, to, region } => {
+            let groups = deskward_core::acl::load_groups();
+            if !deskward_core::acl::punch_allowed(&from, &to, &groups) {
+                return Some(Message::PunchDenied {
+                    to: from,
+                    reason: "acl denied".into(),
+                });
+            }
             let endpoint = registry.endpoint_of(&to)?;
-            let relay = relay_registry::pick_relay();
-            let resp = Message::PunchResponse {
+            let relay = relay_registry::pick_relay(region.as_deref()).map(|r| RelayHint {
+                host: r.host,
+                port: r.port,
+            });
+            Some(Message::PunchResponse {
                 from: to,
                 to: from,
                 endpoint,
-            };
-            if let Some(r) = relay {
-                tracing::debug!(relay_host = %r.host, relay_port = r.port, "relay hint available");
-            }
-            Some(resp)
+                relay,
+            })
         }
         other => {
             warn!(?other, "unexpected message on id server");
@@ -133,9 +94,18 @@ async fn main() -> std::io::Result<()> {
         .init();
 
     let bind = std::env::var("DESKWARD_ID_ADDR").unwrap_or_else(|_| DEFAULT_TCP.to_string());
+    let admin_bind =
+        std::env::var("DESKWARD_ID_ADMIN_ADDR").unwrap_or_else(|_| DEFAULT_ADMIN.to_string());
     let registry = Registry::new();
     let listener = TcpListener::bind(&bind).await?;
     info!(%bind, "deskward-id listening");
+
+    let admin_reg = registry.clone();
+    tokio::spawn(async move {
+        if let Err(e) = admin::run_admin(admin_reg, admin_bind).await {
+            warn!(?e, "admin HTTP server stopped");
+        }
+    });
 
     let reg_prune = registry.clone();
     tokio::spawn(async move {

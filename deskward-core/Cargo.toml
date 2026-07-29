@@ -14,6 +14,18 @@ thiserror.workspace = true
 ed25519-dalek.workspace = true
 rand.workspace = true
 uuid.workspace = true
+argon2 = "0.5"
+async-trait = "0.1"
+snow = "0.10"
+tailscale-localapi = "0.6"
+tokio = { workspace = true, features = ["net", "io-util", "rt", "macros"] }
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+openh264 = { version = "0.6", default-features = false, features = ["source"] }
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+videotoolbox = { version = "0.18", default-features = false, features = ["decompression"] }
+apple-cf = { version = "0.9", features = ["cm", "cv"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt", "macros"] }
+proptest = "1"
+tokio = { workspace = true, features = ["rt", "macros", "net", "io-util"] }

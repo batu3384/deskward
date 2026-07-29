@@ -1,7 +1,6 @@
 //! Integration: end-to-end session handshake between two identities.
 
 use deskward_core::crypto::Identity;
-use deskward_core::protocol::Message;
 use deskward_core::session::{Session, SessionState};
 
 #[test]
@@ -13,22 +12,8 @@ fn two_peer_handshake_establishes_session() {
     let mut ctrl = Session::new("win-ctrl", id_ctrl);
 
     let hello = ctrl.begin_handshake();
-    let Message::HandshakeHello { peer_id, nonce } = hello else {
-        panic!("expected HandshakeHello");
-    };
-
-    let ack = host.on_hello(peer_id, nonce, ctrl.public_key_bytes()).unwrap();
-    let Message::HandshakeAck {
-        nonce: host_nonce,
-        signature,
-        ..
-    } = ack
-    else {
-        panic!("expected HandshakeAck");
-    };
-
-    ctrl.on_ack(host_nonce, &signature, host.public_key_bytes())
-        .unwrap();
+    let ack = host.on_hello(&hello).unwrap();
+    ctrl.on_ack(&ack).unwrap();
 
     assert_eq!(host.state, SessionState::Established);
     assert_eq!(ctrl.state, SessionState::Established);

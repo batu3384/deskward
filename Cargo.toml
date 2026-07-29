@@ -7,6 +7,7 @@ members = [
     "deskward-host-macos",
     "deskward-host-windows",
     "deskward-console",
+    "deskward-ffi",
 ]
 default-members = ["deskward-core", "deskward-id", "deskward-relay", "deskward-console"]
 

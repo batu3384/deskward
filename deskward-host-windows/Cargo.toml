@@ -13,5 +13,12 @@ path = "src/main.rs"
 
 [dependencies]
 deskward-core = { path = "../deskward-core" }
+tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+dirs = "5"
+xcap = "0.9.7"
+enigo = "0.3"
+arboard = "3"
